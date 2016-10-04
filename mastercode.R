@@ -24,11 +24,36 @@ corpo <- read_csv("data/enfrentamientos/catalogo/tabla9-A-E.csv", skip = 1, col_
 enf <- left_join(enf, asegur, by = "ID")
 enf <- left_join(enf, corpo, by = "ID")
 
+## base de datos de agresiones, del CIDE
+agr <- read_tsv("data/agresiones/BD_A-A.txt")
+colnames(agr)[1] <- "ID"
+colnames(agr)[5] <- "ANO"
+agr[agr == 9999] <- 0
+agr <- agr %>% 
+  select(-IO,-AG,-RES,-GRA,-ARF) %>% 
+  rename(VEH = VEHICULO)
+
+
+asegur1 <- read_csv("data/agresiones/catalogo/tabla1-A-A.csv", skip = 1, col_names = c("ID", "asegur"))
+
+## table con el nombre de la corporacion involucrada, del CIDE
+
+corpo1 <- read_csv("data/agresiones/catalogo/tabla9-A-A.csv", skip = 1, col_names = c("ID", "corpo"))
+
+agr <- left_join(agr, asegur1, by = "ID")
+agr <- left_join(agr, corpo1, by = "ID")
+
+
+## pegar las dos bases de datos para que contengan el total de enfrentamientos armados
+
+enf <- rbind(enf, agr)
+
 ## selección de códigos de interés de aseguramientos y nombre de corporación 
 ##comunicación, armamento, uniformes, dinero, vehículos, mariguana, cocaina, 
 ## heroina, drogas, otras, armas largas y armas cortas (dicotómicas), 
 ## sedena, semar, base de operaciones mixtas, PF, policía estatal, municipal,
 ## ministerial, AFI
+## crear columnas según el libro de códigos
 enf <- enf %>%
   mutate(team = ifelse(asegur == 1 | asegur == 3, 1, 0), 
          com = ifelse(asegur == 1, 1, 0), 
@@ -53,48 +78,12 @@ enf <- enf %>%
          min = ifelse(corpo == 13, 1, 0), 
          afi = ifelse(corpo == 28, 1, 0))
 
+## eliminar duplicados una vez que fueron creadas las columnas
 enf1 <- enf %>%
   group_by(ID) %>%
   summarise_each(funs(max)) %>%
   mutate(date = dmy(paste(DIA, MES, ANO, sep = "-")), muncode = ESTADO*1000 + Municipio)
 
-
-enf <- enf %>%
-  filter(!duplicated(ID))
-
-## base de datos de agresiones, del CIDE
-agr <- read_tsv("data/agresiones/BD_A-A.txt")
-agr$ID <- 1:nrow(agr)
-colnames(agr)[5] <- "ANO"
-agr[agr == 9999] <- 0
-
-
-## crear fechas y códigos municipales
-agr1 <- agr %>%
-  mutate(date = dmy(paste(DIA, MES, ANO, sep = "-")), muncode = ESTADO*1000 + Municipio, tipo = rep(1, nrow(agr))) %>%
-  select(ID, TIMESTAMP, date, muncode, tipo)
-## agregar tipo enfretamineto y o agreción  
-enf2 <- select(enf1, ID, TIMESTAMP, date, muncode) %>%
-  mutate(tipo = rep(0, nrow(enf1)))
-
-## junta agresiones y enfrentamientos
-tipo <- rbind(agr1, enf2)
-## crear y arreglar variable sobre agresión previa
-tipo <- arrange(tipo, date) %>%
-  group_by(muncode) %>%
-  mutate(prev = lag(tipo)) %>%
-  ungroup() %>%
-  filter(tipo == 0)
-
-tipo$prev[is.na(tipo$prev)] <- 0
-
-tipo <- select(tipo, ID, prev, tipo)
-
-enf1 <- left_join(enf1, tipo, by = "ID")
-
-## variable antes o después del 2009
-enf1 <- enf1 %>%
-  mutate(post2009 = ifelse(ANO < 2010, 0, 1))
 
 ## distancia de las capitales de los estados
 capitales <- read_csv("data/capitales_distances.csv")
@@ -162,20 +151,54 @@ enf1 <- mutate(enf1, gini = as.numeric(gini))
 ## ols
 a <- lm(log(DOF+1) ~ uni + arl_d + log(dist_capital+1) + log(STD) + fed_party + densidad + gini + pct.poor + log(pop), data = enf1)
 ## poisson
-b <- glm(DOF ~ uni + arl_d + log(dist_capital+1) + log(STD) + fed_party + densidad + gini + pct.poor + prev, offset(log(pop)), family = "poisson", data = enf1)
+b <- glm(DOF ~ uni + arl_d + log(dist_capital+1) + log(STD) + fed_party + densidad + gini + pct.poor, offset(log(pop)), family = "poisson", data = enf1)
 
 ## negative binomial
 library(MASS)
-c <- glm.nb(DOF ~ uni + arl_d + log(dist_capital+1) + log(STD) + fed_party + densidad + gini + pct.poor, data = enf1)
+c <- glm.nb(DOF ~ uni + arl_d + log(dist_capital+1) + log(STD) + fed_party + densidad + gini + pct.poor, offset(log(pop)), data = enf1)
 
 library(stargazer)
 
 stargazer(a, b, c, header=FALSE, type = "html", title = "Regression results", dep.var.labels = c("Oponents Killed", "Oponents Killed", "Oponents Killed"),
-          covariate.labels = c("Uniforms", "Assault Weapons", "Dist. to state capital", "Std. Dev. Altitude", "Aligned Party", "Road density", "Gini index", "% Poor",
+          covariate.labels = c("Uniforms", "Assault Weapons", "Dist. to state capital", "Std. Dev. Altitude", "Aligned Party", "Road density", "Gini coef", "% Poor",
                               "Population"), flip = TRUE, star.char = c("", "", ""), notes.append = FALSE)
 
 stargazer(a, b, c, header=FALSE, type = "text", title = "Regression results", dep.var.labels = c("Oponents Killed", "Oponents Killed", "Oponents Killed"),
-          covariate.labels = c("Uniforms", "Assault Weapons", "Dist. to state capital", "Std. Dev. Altitude", "Aligned Party", "Road density", "Gini index", "% Poor",
+          covariate.labels = c("Uniforms", "Assault Weapons", "Dist. to state capital", "Std. Dev. Altitude", "Aligned Party", "Road density", "Gini coef", "% Poor",
                                "Population"), flip = TRUE, star.char = c("", "", ""), notes.append = FALSE)
 
 
+
+
+# 
+
+# código para agresiones previas a enfrentamientos ------------------------
+
+
+# 
+# ## crear fechas y códigos municipales
+# agr1 <- agr %>%
+#   mutate(date = dmy(paste(DIA, MES, ANO, sep = "-")), muncode = ESTADO*1000 + Municipio, tipo = rep(1, nrow(agr))) %>%
+#   select(ID, TIMESTAMP, date, muncode, tipo)
+# ## agregar tipo enfretamineto y o agreción  
+# enf2 <- select(enf1, ID, TIMESTAMP, date, muncode) %>%
+#   mutate(tipo = rep(0, nrow(enf1)))
+# 
+# ## junta agresiones y enfrentamientos
+# tipo <- rbind(agr1, enf2)
+# ## crear y arreglar variable sobre agresión previa
+# tipo <- arrange(tipo, date) %>%
+#   group_by(muncode) %>%
+#   mutate(prev = lag(tipo)) %>%
+#   ungroup() %>%
+#   filter(tipo == 0)
+# 
+# tipo$prev[is.na(tipo$prev)] <- 0
+# 
+# tipo <- select(tipo, ID, prev, tipo)
+# 
+# enf1 <- left_join(enf1, tipo, by = "ID")
+# 
+# ## variable antes o después del 2009
+# enf1 <- enf1 %>%
+#   mutate(post2009 = ifelse(ANO < 2010, 0, 1))
