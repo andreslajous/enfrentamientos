@@ -151,12 +151,11 @@ enf1 <- left_join(enf1, poor)
 
 enf1 <- mutate(enf1, gini = as.numeric(gini))
 
-write.csv(enf1, "enf1.csv")
+#write.csv(enf1, "enf1.csv")
 #enf1 <- select(enf1, ID, muncode, uni, arl_d, dist_capital, STD, fed_party, densidad, gini, pct.poor)
-
 #no_match <- enf1[which(!complete.cases(enf1)),] # check that cases are complete
 
-
+## enf1 <- read_csv("enf1.csv") ## load data frame
 ## ols with log transformation
 a <- lm(log(DOF+1) ~ uni + arl_d + log(dist_capital+1) + log(STD) + fed_party + densidad + gini + pct.poor + log(pop), data = enf1)
 ## poisson
