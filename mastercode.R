@@ -4,56 +4,59 @@ library(ggplot2)
 library(lubridate)
 
 Sys.setlocale('LC_ALL','C')  
-## base de datos de enfrentamientos del CIDE
+## engagments database made public by CIDE
 enf <- read_tsv("data/enfrentamientos/BD_A-E.txt")
-colnames(enf)[1] <- "ID"
+colnames(enf)[1] <- "ID" #correct column titles
 colnames(enf)[5] <- "ANO"
-enf[enf == 9999] <- 0
+enf[enf == 9999] <- 0 # code NA with 0
 
 
-##tabla con códigos de otro aseguramientos, del CIDE
+##table with type of confiscated objects, CIDE
 
 asegur <- read_csv("data/enfrentamientos/catalogo/tabla1-A-E.csv", skip = 1, col_names = c("ID", "asegur"))
 
-## table con el nombre de la corporacion involucrada, del CIDE
+## table coding corporations involved, CIDE
 
 corpo <- read_csv("data/enfrentamientos/catalogo/tabla9-A-E.csv", skip = 1, col_names = c("ID", "corpo"))
 
-## juntar tablas con base de datos de enfrentamientos
+## join database with coded tables
 
 enf <- left_join(enf, asegur, by = "ID")
 enf <- left_join(enf, corpo, by = "ID")
 
-## base de datos de agresiones, del CIDE
+## database with attacks against armed forces, made public by CIDE
 agr <- read_tsv("data/agresiones/BD_A-A.txt")
 colnames(agr)[1] <- "ID"
+agr$ID <- agr$ID+4000 # add a number for IDs that is larger from the enf database
 colnames(agr)[5] <- "ANO"
 agr[agr == 9999] <- 0
 agr <- agr %>% 
   select(-IO,-AG,-RES,-GRA,-ARF) %>% 
   rename(VEH = VEHICULO)
 
-
+##table with type of confiscated objects, CIDE
 asegur1 <- read_csv("data/agresiones/catalogo/tabla1-A-A.csv", skip = 1, col_names = c("ID", "asegur"))
+asegur1$ID <- asegur1$ID+4000 
 
-## table con el nombre de la corporacion involucrada, del CIDE
+## table coding the corporations involved,  CIDE
 
 corpo1 <- read_csv("data/agresiones/catalogo/tabla9-A-A.csv", skip = 1, col_names = c("ID", "corpo"))
-
+corpo1$ID <- corpo1$ID+4000 
 agr <- left_join(agr, asegur1, by = "ID")
 agr <- left_join(agr, corpo1, by = "ID")
 
 
-## pegar las dos bases de datos para que contengan el total de enfrentamientos armados
-
+## bind the attacks and the engagemnt database to get dataframe for all armed engagements
 enf <- rbind(enf, agr)
 
-## selección de códigos de interés de aseguramientos y nombre de corporación 
-##comunicación, armamento, uniformes, dinero, vehículos, mariguana, cocaina, 
-## heroina, drogas, otras, armas largas y armas cortas (dicotómicas), 
+## code confiscated objects and corporations from PDF codebook 
+##comunicación (coms), armamento (weaponry), uniformes (uniforms), 
+##dinero (money), vehículos (vehicles), mariguana (marihuana), cocaina (cocaine), 
+## heroina (heorin), drogas (drugs), otras (other), 
+## armas largas (assult weapons) y armas cortas (handguns) (1 or 0), 
 ## sedena, semar, base de operaciones mixtas, PF, policía estatal, municipal,
 ## ministerial, AFI
-## crear columnas según el libro de códigos
+## create columns following codebook
 enf <- enf %>%
   mutate(team = ifelse(asegur == 1 | asegur == 3, 1, 0), 
          com = ifelse(asegur == 1, 1, 0), 
@@ -78,14 +81,14 @@ enf <- enf %>%
          min = ifelse(corpo == 13, 1, 0), 
          afi = ifelse(corpo == 28, 1, 0))
 
-## eliminar duplicados una vez que fueron creadas las columnas
+## remove duplicate observations once columns were created
 enf1 <- enf %>%
   group_by(ID) %>%
   summarise_each(funs(max)) %>%
   mutate(date = dmy(paste(DIA, MES, ANO, sep = "-")), muncode = ESTADO*1000 + Municipio)
 
 
-## distancia de las capitales de los estados
+## distance from state capital
 capitales <- read_csv("data/capitales_distances.csv")
 
 capitales <- capitales[4:6]
@@ -94,7 +97,7 @@ enf1 <- left_join(enf1, capitales, by = "muncode")
 
 enf1 <- rename(enf1, year = ANO)
 
-## datos del censo 2010
+## census data 2010
 census <- read_delim("/Users/andres/Google Drive/empirical/data/ITER_NALTXT10.TXT", delim = "\t")
 
 
@@ -111,23 +114,23 @@ total_pop <- census %>%
 
 enf1 <- left_join(enf1, total_pop, by = "muncode")
 
-## datos de partido en el poder
+## party alignment (1, 0)
 party <- read_csv("data/party_mixed.csv")
 party <- select(party, 2,3,8,9)
 
-## datos de desviación estandar de elevación
+## elevation data
 zonal <- read_csv("data/zonal_stats.csv")
 zonal <- select(zonal, 5, 12:14)
 
 enf1 <- left_join(enf1, zonal)
 enf1 <- left_join(enf1, party, by = c("muncode", "year"))
 
-## densidad de caminos a nivel municipio
+## road density at the municipal level
 densidad <- read_csv("data/densidad_caminos_mpo.csv")
 densidad <- select(densidad, 2, 7)
 enf1 <- left_join(enf1, densidad)
 
-## presencia de carteles, base de datos Coscia - Rios
+## cartel presence, data from Coscia - Rios
 cartel <- read_csv("data/CosciaRios2012_DataBase.csv") %>%
   mutate(cartel = ifelse(rowSums(.[4:13]) > 0, 1, 0)) %>%
   select(muncode = Code, year = Year, cartel)
@@ -136,7 +139,7 @@ cartel$year <- lead(cartel$year)
 
 enf1 <- left_join(enf1, cartel, by = c("muncode", "year"))
 
-## datos de pobres y desigualdad
+## data for municipal poverty and inequality
 coneval <- read_csv("~/Google Drive/empirical/data/3.3 Concentrado, indicadores de pobreza por municipio.csv", skip = 6, col_names = FALSE)
 poor <- coneval %>%
   filter(!is.na(X3)) %>%
@@ -147,8 +150,12 @@ enf1 <- left_join(enf1, poor)
 
 enf1 <- mutate(enf1, gini = as.numeric(gini))
 
+enf1 <- select(enf1, ID, muncode, uni, arl_d, dist_capital, STD, fed_party, densidad, gini, pct.poor)
 
-## ols
+#no_match <- enf1[which(!complete.cases(enf1)),] # check that cases are complete
+
+
+## ols with log transformation
 a <- lm(log(DOF+1) ~ uni + arl_d + log(dist_capital+1) + log(STD) + fed_party + densidad + gini + pct.poor + log(pop), data = enf1)
 ## poisson
 b <- glm(DOF ~ uni + arl_d + log(dist_capital+1) + log(STD) + fed_party + densidad + gini + pct.poor, offset(log(pop)), family = "poisson", data = enf1)
@@ -159,9 +166,11 @@ c <- glm.nb(DOF ~ uni + arl_d + log(dist_capital+1) + log(STD) + fed_party + den
 
 library(stargazer)
 
+##html regression tables
 stargazer(a, b, c, header=FALSE, type = "html", title = "Regression results", dep.var.labels = c("Oponents Killed", "Oponents Killed", "Oponents Killed"),
           covariate.labels = c("Uniforms", "Assault Weapons", "Dist. to state capital", "Std. Dev. Altitude", "Aligned Party", "Road density", "Gini coef", "% Poor",
                               "Population"), flip = TRUE, star.char = c("", "", ""), notes.append = FALSE)
+## text regression tables
 
 stargazer(a, b, c, header=FALSE, type = "text", title = "Regression results", dep.var.labels = c("Oponents Killed", "Oponents Killed", "Oponents Killed"),
           covariate.labels = c("Uniforms", "Assault Weapons", "Dist. to state capital", "Std. Dev. Altitude", "Aligned Party", "Road density", "Gini coef", "% Poor",
