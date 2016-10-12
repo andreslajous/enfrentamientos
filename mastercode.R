@@ -14,10 +14,11 @@ enf[enf == 9999] <- 0 # code NA with 0
 ##table with type of confiscated objects, CIDE
 
 asegur <- read_csv("data/enfrentamientos/catalogo/tabla1-A-E.csv", skip = 1, col_names = c("ID", "asegur"))
-
+##problems with gibberish from original file
 ## table coding corporations involved, CIDE
 
 corpo <- read_csv("data/enfrentamientos/catalogo/tabla9-A-E.csv", skip = 1, col_names = c("ID", "corpo"))
+##problems with gibberish from original file
 
 ## join database with coded tables
 
@@ -97,7 +98,7 @@ enf1 <- left_join(enf1, capitales, by = "muncode")
 
 enf1 <- rename(enf1, year = ANO)
 
-## census data 2010
+## census data 2010, INEGI
 census <- read_delim("/Users/andres/Google Drive/empirical/data/ITER_NALTXT10.TXT", delim = "\t")
 
 
@@ -135,7 +136,7 @@ cartel <- read_csv("data/CosciaRios2012_DataBase.csv") %>%
   mutate(cartel = ifelse(rowSums(.[4:13]) > 0, 1, 0)) %>%
   select(muncode = Code, year = Year, cartel)
 
-cartel$year <- lead(cartel$year)
+cartel$year <- lead(cartel$year) # match with previous year
 
 enf1 <- left_join(enf1, cartel, by = c("muncode", "year"))
 
@@ -150,7 +151,8 @@ enf1 <- left_join(enf1, poor)
 
 enf1 <- mutate(enf1, gini = as.numeric(gini))
 
-enf1 <- select(enf1, ID, muncode, uni, arl_d, dist_capital, STD, fed_party, densidad, gini, pct.poor)
+write.csv(enf1, "enf1.csv")
+#enf1 <- select(enf1, ID, muncode, uni, arl_d, dist_capital, STD, fed_party, densidad, gini, pct.poor)
 
 #no_match <- enf1[which(!complete.cases(enf1)),] # check that cases are complete
 
