@@ -5,6 +5,7 @@ library(lubridate)
 
 Sys.setlocale('LC_ALL','C')  
 ## engagments database made public by CIDE
+## http://hdl.handle.net/10089/17388
 enf <- read_tsv("data/enfrentamientos/BD_A-E.txt")
 colnames(enf)[1] <- "ID" #correct column titles
 colnames(enf)[5] <- "ANO"
@@ -26,6 +27,7 @@ enf <- left_join(enf, asegur, by = "ID")
 enf <- left_join(enf, corpo, by = "ID")
 
 ## database with attacks against armed forces, made public by CIDE
+## http://hdl.handle.net/10089/17387
 agr <- read_tsv("data/agresiones/BD_A-A.txt")
 colnames(agr)[1] <- "ID"
 agr$ID <- agr$ID+4000 # add a number for IDs that is larger from the enf database
