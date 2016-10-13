@@ -101,7 +101,7 @@ enf1 <- left_join(enf1, capitales, by = "muncode")
 enf1 <- rename(enf1, year = ANO)
 
 ## census data 2010, INEGI
-census <- read_delim("/Users/andres/Google Drive/empirical/data/ITER_NALTXT10.TXT", delim = "\t")
+census <- read_delim("data/ITER_NALTXT10.TXT", delim = "\t")
 
 
 total_pop <- census %>%
@@ -143,7 +143,7 @@ cartel$year <- lead(cartel$year) # match with previous year
 enf1 <- left_join(enf1, cartel, by = c("muncode", "year"))
 
 ## data for municipal poverty and inequality
-coneval <- read_csv("~/Google Drive/empirical/data/3.3 Concentrado, indicadores de pobreza por municipio.csv", skip = 6, col_names = FALSE)
+coneval <- read_csv("data/3.3 Concentrado, indicadores de pobreza por municipio.csv", skip = 6, col_names = FALSE)
 poor <- coneval %>%
   filter(!is.na(X3)) %>%
   select(muncode = X3, pct.poor = X6, 
